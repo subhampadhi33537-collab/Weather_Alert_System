@@ -45,7 +45,7 @@ weather_system_clone/
 ├── model/              # ML anomaly detection
 ├── utils/              # Helpers, alerts
 ├── data/               # Weather logs, training data
-└── start.bat           # Run both servers
+          # Run both servers
 ```
 
 ## Database (Login & Signup)
