@@ -24,12 +24,14 @@ def _read_json_array(path: Path) -> List[Dict[str, Any]]:
 	return [item for item in payload if isinstance(item, dict)]
 
 
-def append_json_record(file_path: str, record: Dict[str, Any]) -> List[Dict[str, Any]]:
+def append_json_record(file_path: str, record: Dict[str, Any], max_records: int | None = None) -> List[Dict[str, Any]]:
 	path = Path(file_path)
 	path.parent.mkdir(parents=True, exist_ok=True)
 
 	rows = _read_json_array(path)
 	rows.append(record)
+	if isinstance(max_records, int) and max_records > 0 and len(rows) > max_records:
+		rows = rows[-max_records:]
 
 	path.write_text(json.dumps(rows, separators=(",", ":")), encoding="utf-8")
 	return rows

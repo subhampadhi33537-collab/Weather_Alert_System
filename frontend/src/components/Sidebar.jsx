@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, CloudLightning, Droplets, Wind, Settings } from 'lucide-react';
+import { Layers, CloudLightning, Droplets, Wind, Settings, Gauge } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ activeLayer, setActiveLayer }) => {
@@ -15,11 +15,11 @@ const Sidebar = ({ activeLayer, setActiveLayer }) => {
           <span>Temperature</span>
         </button>
         <button 
-          className={`sidebar-btn ${activeLayer === 'Precipitation' ? 'active' : ''}`}
-          onClick={() => setActiveLayer('Precipitation')}
+          className={`sidebar-btn ${activeLayer === 'Humidity' ? 'active' : ''}`}
+          onClick={() => setActiveLayer('Humidity')}
         >
           <Droplets size={18} className="neon-text-cyan" />
-          <span>Precipitation</span>
+          <span>Humidity</span>
         </button>
         <button 
           className={`sidebar-btn ${activeLayer === 'Wind Speed' ? 'active' : ''}`}
@@ -27,6 +27,13 @@ const Sidebar = ({ activeLayer, setActiveLayer }) => {
         >
           <Wind size={18} className="neon-text-cyan" />
           <span>Wind Speed</span>
+        </button>
+        <button 
+          className={`sidebar-btn ${activeLayer === 'Atmospheric Pressure' ? 'active' : ''}`}
+          onClick={() => setActiveLayer('Atmospheric Pressure')}
+        >
+          <Gauge size={18} className="neon-text-cyan" />
+          <span>Atmospheric Pressure</span>
         </button>
       </div>
     </div>

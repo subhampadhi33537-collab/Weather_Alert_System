@@ -27,6 +27,33 @@ export const fetchCurrentWeather = async (city = 'Dhenkanal') => {
     }
 };
 
+export const fetchLiveAnomalyData = async (location, userId = null, limit = 300) => {
+    try {
+        if (!location) {
+            return { anomaly_logs: [] };
+        }
+
+        const params = new URLSearchParams({
+            location,
+            auto_refresh: 'true',
+            limit: String(limit)
+        });
+
+        if (userId !== null && userId !== undefined) {
+            params.set('user_id', String(userId));
+        }
+
+        const response = await fetch(`/api/anomaly/live?${params.toString()}`);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching live anomaly data:', error);
+        return { anomaly_logs: [] };
+    }
+};
+
 export const fetchAdvisories = async (location) => {
     try {
         const response = await fetch(`/api/advisory?location=${encodeURIComponent(location)}`);

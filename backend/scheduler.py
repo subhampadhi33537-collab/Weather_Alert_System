@@ -45,7 +45,7 @@ def run_cycle(
 	if reset_scan_files:
 		write_json_records(WEATHER_LOGS_PATH, [weather_record])
 	else:
-		append_json_record(WEATHER_LOGS_PATH, weather_record)
+		append_json_record(WEATHER_LOGS_PATH, weather_record, max_records=100)
 	try:
 		insert_weather_log(
 			temp=weather["temp"],
@@ -74,7 +74,7 @@ def run_cycle(
 	if reset_scan_files:
 		write_json_records(ANOMALY_RESULT_PATH, [detection_record])
 	else:
-		append_json_record(ANOMALY_RESULT_PATH, detection_record)
+		append_json_record(ANOMALY_RESULT_PATH, detection_record, max_records=100)
 
 	stored_alerts = []
 	for message in alerts:

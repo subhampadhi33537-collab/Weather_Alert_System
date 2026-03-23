@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from flask import Blueprint, jsonify, request
 
 from backend.data_storage import (
@@ -12,8 +14,69 @@ from backend.data_storage import (
 from backend.scheduler import detect_anomaly, run_cycle, test_ml_email_alert_for_user
 from backend.weather_service import check_weather_api_key, get_weather
 from config import ANOMALY_RESULT_PATH, WEATHER_LOGS_PATH
+from utils.helpers import read_json_records, write_json_records
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+LIVE_REFRESH_MINUTES = 10
+
+
+def _parse_iso_timestamp(value: str | None) -> datetime | None:
+	if not value:
+		return None
+	try:
+		return datetime.fromisoformat(value.replace("Z", "+00:00"))
+	except ValueError:
+		return None
+
+
+def _to_int(value):
+	try:
+		return int(value)
+	except (TypeError, ValueError):
+		return None
+
+
+def _should_refresh_for_location(location: str, force_refresh: bool = False) -> bool:
+	if force_refresh:
+		return True
+
+	recent = get_recent_weather(limit=1, location=location)
+	if not recent:
+		return True
+
+	last_timestamp = _parse_iso_timestamp(recent[0].get("timestamp"))
+	if not last_timestamp:
+		return True
+
+	now_utc = datetime.now(timezone.utc)
+	delta_seconds = (now_utc - last_timestamp.astimezone(timezone.utc)).total_seconds()
+	return delta_seconds >= LIVE_REFRESH_MINUTES * 60
+
+
+def _row_location(row: dict) -> str:
+	if not isinstance(row, dict):
+		return ""
+	loc = str(row.get("location") or "").strip()
+	if loc:
+		return loc
+	input_loc = row.get("input") if isinstance(row.get("input"), dict) else {}
+	return str(input_loc.get("location") or "").strip()
+
+
+def _keep_only_location(file_path: str, location: str) -> None:
+	target = str(location or "").strip().lower()
+	if not target:
+		return
+	rows = read_json_records(file_path)
+	filtered = [row for row in rows if _row_location(row).lower() == target]
+	write_json_records(file_path, filtered)
+
+
+def _sync_json_files_to_location(location: str) -> None:
+	_keep_only_location(WEATHER_LOGS_PATH, location)
+	_keep_only_location(ANOMALY_RESULT_PATH, location)
 
 
 @api_bp.post("/register")
@@ -28,6 +91,7 @@ def api_register():
 
 	try:
 		user = register_user(email=email, password=password, location=location)
+		_sync_json_files_to_location(location)
 		return jsonify({"message": "registered", "user": user}), 201
 	except ValueError as exc:
 		return jsonify({"error": str(exc)}), 400
@@ -45,6 +109,8 @@ def api_login():
 	user = login_user(email=email, password=password)
 	if not user:
 		return jsonify({"error": "invalid credentials"}), 401
+
+	_sync_json_files_to_location(str(user.get("location") or ""))
 
 	return jsonify({"message": "login successful", "user": user}), 200
 
@@ -133,6 +199,44 @@ def api_dashboard_data():
 	return jsonify({"weather_logs": weather, "alerts": alerts}), 200
 
 
+@api_bp.get("/anomaly/live")
+def api_live_anomaly_data():
+	location = (request.args.get("location") or "").strip()
+	if not location:
+		return jsonify({"error": "location is required"}), 400
+
+	user_id = _to_int(request.args.get("user_id"))
+	limit = _to_int(request.args.get("limit")) or 300
+	limit = max(1, min(limit, 1000))
+	force_refresh = (request.args.get("force_refresh") or "").strip().lower() == "true"
+	auto_refresh = (request.args.get("auto_refresh") or "true").strip().lower() != "false"
+
+	refresh_triggered = False
+	if auto_refresh and _should_refresh_for_location(location=location, force_refresh=force_refresh):
+		run_cycle(city=location, user_id=user_id)
+		refresh_triggered = True
+
+	rows = read_json_records(ANOMALY_RESULT_PATH)
+	filtered_rows = [
+		row
+		for row in rows
+		if str(row.get("location") or "").strip().lower() == location.lower()
+	]
+	filtered_rows.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
+
+	return (
+		jsonify(
+			{
+				"location": location,
+				"refresh_interval_minutes": LIVE_REFRESH_MINUTES,
+				"refresh_triggered": refresh_triggered,
+				"anomaly_logs": filtered_rows[:limit],
+			}
+		),
+		200,
+	)
+
+
 @api_bp.get("/advisory")
 def api_advisory():
 	"""Weather-based crop advisories. Requires current weather from /weather/current."""
@@ -216,6 +320,8 @@ def api_update_profile():
 	user = update_user_location(user_id=user_id, location=location)
 	if not user:
 		return jsonify({"error": "User not found"}), 404
+
+	_sync_json_files_to_location(location)
 
 	return jsonify({"message": "Profile updated", "user": user}), 200
 

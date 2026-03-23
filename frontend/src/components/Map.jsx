@@ -73,12 +73,15 @@ const Map = ({ searchedLocationData, activeLayer }) => {
                     '<span style="font-size: 12px;">' + labels[i] + '</span>' +
                     '</div>';
             }
-        } else if (activeLayer === 'Precipitation') {
-            div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Precipitation</h4>';
-            div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#0ea5e9; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Rainfall Level</span></div>';
+        } else if (activeLayer === 'Humidity') {
+          div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Humidity</h4>';
+          div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#0ea5e9; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Humidity Level</span></div>';
         } else if (activeLayer === 'Wind Speed') {
             div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Wind Speed</h4>';
             div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#a855f7; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Wind Intensity</span></div>';
+        } else if (activeLayer === 'Atmospheric Pressure') {
+          div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Atmospheric Pressure</h4>';
+          div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#14b8a6; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Pressure Level</span></div>';
         }
 
         return div;
@@ -109,8 +112,9 @@ const Map = ({ searchedLocationData, activeLayer }) => {
       let color = getTempColor(temp);
       let fillOpacity = 0.8;
       
-      if (activeLayer === 'Precipitation') color = '#0ea5e9'; // standard rain color
+      if (activeLayer === 'Humidity') color = '#0ea5e9';
       if (activeLayer === 'Wind Speed') color = '#a855f7'; // purple for wind
+      if (activeLayer === 'Atmospheric Pressure') color = '#14b8a6';
 
       // Create a visually distinct marker or circle for the searched location
       searchMarkerRef.current = L.circle([lat, lon], {
@@ -129,6 +133,7 @@ const Map = ({ searchedLocationData, activeLayer }) => {
            <p style="margin:0; color: #666;"><b>Temperature:</b> ${temp}°C</p>
            <p style="margin:0; color: #666;"><b>Wind Speed:</b> ${wind} km/h</p>
            <p style="margin:0; color: #666;"><b>Humidity:</b> ${humidity}%</p>
+          <p style="margin:0; color: #666;"><b>Atmospheric Pressure:</b> ${pressure} hPa</p>
          </div>
       `).openPopup();
     }

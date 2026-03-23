@@ -5,9 +5,15 @@ import {
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
+    const timeLabel = typeof label === 'number'
+      ? new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : `${label}`;
+    const area = payload?.[0]?.payload?.area || payload?.[0]?.payload?.location || 'Unknown Area';
+
     return (
       <div className="glass-panel" style={{ padding: '10px', fontSize: '0.85rem' }}>
-        <p className="neon-text-cyan">{`${label}`}</p>
+        <p className="neon-text-cyan">{timeLabel}</p>
+        <p style={{ color: '#a0aec0', margin: '0 0 4px 0' }}>{area}</p>
         {payload.map((entry, index) => (
           <p key={index} style={{ color: entry.color, margin: 0 }}>
             {`${entry.name}: ${entry.value}`}
@@ -21,50 +27,101 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // Customized dot to highlight anomalies
 const CustomizedDot = (props) => {
-  const { cx, cy, payload, value } = props;
+  const { cx, cy, payload, dataKey, stroke } = props;
+  
+  if (!cx || !cy) return null;
 
-  // Assuming 'isAnomaly' is a boolean flag in the payload
-  if (payload.isAnomaly) {
+  let isDotAnomaly = false;
+  
+  if (dataKey === 'temperature') isDotAnomaly = payload?.isTempAnomaly;
+  else if (dataKey === 'wind') isDotAnomaly = payload?.isWindAnomaly;
+  else if (dataKey === 'rainfall') isDotAnomaly = payload?.isPressureAnomaly;
+  else isDotAnomaly = payload?.isAnomaly;
+
+  if (isDotAnomaly) {
     return (
-      <circle cx={cx} cy={cy} r={6} fill="var(--accent-red)" stroke="var(--bg-primary)" strokeWidth={2} style={{ filter: 'drop-shadow(0 0 6px var(--accent-red))' }} />
+      <circle 
+        cx={cx} 
+        cy={cy} 
+        r={6} 
+        fill="#ff3366" 
+        stroke="#050a15" 
+        strokeWidth={2} 
+        style={{ filter: 'drop-shadow(0 0 6px #ff3366)' }} 
+      />
     );
   }
 
-  return <circle cx={cx} cy={cy} r={4} fill="var(--accent-cyan)" stroke="none" />;
+  return (
+    <circle 
+      cx={cx} 
+      cy={cy} 
+      r={4} 
+      fill={stroke || '#00f0ff'} 
+      stroke="none" 
+      opacity={0.9}
+    />
+  );
 };
 
 
-const Graph = ({ data, dataKey, title, strokeColor = "var(--accent-cyan)" }) => {
+const Graph = ({ data, dataKey, title, strokeColor = "#00f0ff" }) => {
+  // Ensure we have valid data and proper styling
+  const displayData = Array.isArray(data)
+    ? data.filter((row) => Number.isFinite(row?.ts) && Number.isFinite(row?.[dataKey]))
+    : [];
+  const finalStrokeColor = strokeColor || "#00f0ff";
+  
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', height: '350px', display: 'flex', flexDirection: 'column' }}>
       <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)' }}>{title}</h3>
-      <div style={{ flex: 1, width: '100%' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-            <XAxis 
-              dataKey="name" 
-              stroke="var(--text-secondary)" 
-              tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} 
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            />
-            <YAxis 
-              stroke="var(--text-secondary)" 
-              tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} 
-              axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Line 
-              type="monotone" 
-              dataKey={dataKey} 
-              stroke={strokeColor} 
-              strokeWidth={3}
-              dot={<CustomizedDot />}
-              activeDot={{ r: 8, fill: strokeColor, stroke: 'var(--bg-primary)', strokeWidth: 2 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {displayData.length === 0 ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+          Waiting for data...
+        </div>
+      ) : (
+        <div style={{ flex: 1, width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+              <XAxis 
+                dataKey="ts"
+                type="number"
+                domain={[
+                  (min) => min - 30 * 60 * 1000,
+                  (max) => max + 30 * 60 * 1000,
+                ]}
+                stroke="#a0aec0" 
+                tick={{ fill: '#a0aec0', fontSize: 12 }} 
+                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                minTickGap={20}
+              />
+              <YAxis 
+                stroke="#a0aec0" 
+                tick={{ fill: '#a0aec0', fontSize: 12 }} 
+                axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line 
+                type="linear" 
+                dataKey={dataKey} 
+                stroke={finalStrokeColor}
+                strokeWidth={3}
+                strokeOpacity={1}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                connectNulls={true}
+                isAnimationActive={true}
+                animationDuration={700}
+                animationEasing="ease-out"
+                dot={(dotProps) => <CustomizedDot {...dotProps} dataKey={dataKey} stroke={finalStrokeColor} />}
+                activeDot={{ r: 7, fill: finalStrokeColor, stroke: '#050a15', strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 };

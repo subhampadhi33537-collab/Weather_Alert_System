@@ -12,6 +12,8 @@ def rule_based_alert(temp: float, wind: float, pressure: float) -> List[str]:
 
 	if temp > 40:
 		alerts.append("High Temperature Alert")
+	if temp <= 0:
+		alerts.append("Very Low Temperature Alert")
 	if wind > 50:
 		alerts.append("Strong Wind Alert")
 	if pressure < 980:
