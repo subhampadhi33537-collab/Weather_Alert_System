@@ -103,6 +103,7 @@ const Map = ({ searchedLocationData, activeLayer }) => {
   useEffect(() => {
     if (searchedLocationData && mapInstance.current && searchedLocationData.lat && searchedLocationData.lon) {
       const { lat, lon, temp, wind, humidity, pressure, city } = searchedLocationData;
+      const windKmh = Number(wind) * 3.6;
       
       // Remove previous search marker if exists
       if (searchMarkerRef.current) {
@@ -131,7 +132,7 @@ const Map = ({ searchedLocationData, activeLayer }) => {
               📍 ${city}
            </h4>
            <p style="margin:0; color: #666;"><b>Temperature:</b> ${temp}°C</p>
-           <p style="margin:0; color: #666;"><b>Wind Speed:</b> ${wind} km/h</p>
+           <p style="margin:0; color: #666;"><b>Wind Speed:</b> ${Number.isFinite(windKmh) ? windKmh.toFixed(2) : '-'} km/h</p>
            <p style="margin:0; color: #666;"><b>Humidity:</b> ${humidity}%</p>
           <p style="margin:0; color: #666;"><b>Atmospheric Pressure:</b> ${pressure} hPa</p>
          </div>

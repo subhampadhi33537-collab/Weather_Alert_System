@@ -12,6 +12,7 @@ const MapPage = ({ searchQuery }) => {
   const { user } = useAuth();
   
   const effectiveQuery = searchQuery || user?.location;
+  const windKmh = searchedData ? (Number(searchedData.wind) * 3.6) : null;
 
   useEffect(() => {
     if (!effectiveQuery) return;
@@ -79,7 +80,7 @@ const MapPage = ({ searchQuery }) => {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Wind size={14} /> Wind</span>
-                       <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{searchedData.wind} km/h</span>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{Number.isFinite(windKmh) ? windKmh.toFixed(2) : '-'} km/h</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}><Droplets size={14} /> Humidity</span>

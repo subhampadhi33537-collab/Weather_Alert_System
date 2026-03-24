@@ -161,6 +161,29 @@ def get_user_by_email(email: str) -> Optional[Dict]:
 	}
 
 
+def get_all_users() -> List[Dict]:
+	query = """
+	SELECT id, email, location, created_at
+	FROM public.users
+	ORDER BY id ASC;
+	"""
+
+	with get_pg_connection() as conn:
+		with conn.cursor() as cursor:
+			cursor.execute(query)
+			rows = cursor.fetchall()
+
+	return [
+		{
+			"id": row[0],
+			"email": row[1],
+			"location": row[2],
+			"created_at": row[3].isoformat(),
+		}
+		for row in rows
+	]
+
+
 
 def insert_weather_log(temp: float, humidity: float, pressure: float, wind: float, location: str) -> Dict:
 	query = """
@@ -212,10 +235,11 @@ def get_recent_weather(limit: int = 20, location: Optional[str] = None) -> List[
 		SELECT id, temp, humidity, pressure, wind, location, timestamp
 		FROM public.weather_logs
 		WHERE LOWER(location) = LOWER(%s)
+		   OR LOWER(split_part(location, ',', 1)) = LOWER(split_part(%s, ',', 1))
 		ORDER BY timestamp DESC
 		LIMIT %s;
 		"""
-		params = (location, limit)
+		params = (location, location, limit)
 	else:
 		query = """
 		SELECT id, temp, humidity, pressure, wind, location, timestamp
@@ -244,16 +268,26 @@ def get_recent_weather(limit: int = 20, location: Optional[str] = None) -> List[
 	]
 
 
+def _infer_alert_severity(message: str) -> str:
+	text = str(message or "").strip().lower()
+	if any(token in text for token in ("storm", "cyclone", "extreme", "high", "very low", "unusual")):
+		return "High"
+	if any(token in text for token in ("medium", "moderate", "risk", "humid", "dry")):
+		return "Medium"
+	return "Low"
+
+
 def get_recent_alerts(limit: int = 20, location: Optional[str] = None) -> List[Dict]:
 	if location:
 		query = """
 		SELECT id, user_id, message, location, timestamp
 		FROM public.alerts
 		WHERE LOWER(location) = LOWER(%s)
+		   OR LOWER(split_part(location, ',', 1)) = LOWER(split_part(%s, ',', 1))
 		ORDER BY timestamp DESC
 		LIMIT %s;
 		"""
-		params = (location, limit)
+		params = (location, location, limit)
 	else:
 		query = """
 		SELECT id, user_id, message, location, timestamp
@@ -275,6 +309,7 @@ def get_recent_alerts(limit: int = 20, location: Optional[str] = None) -> List[D
 			"message": row[2],
 			"location": row[3],
 			"timestamp": row[4].isoformat(),
+			"severity": _infer_alert_severity(str(row[2] or "")),
 		}
 		for row in rows
 	]

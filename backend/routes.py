@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
+from threading import Lock
 
 from flask import Blueprint, jsonify, request
 
@@ -11,7 +13,7 @@ from backend.data_storage import (
 	register_user,
 	update_user_location,
 )
-from backend.scheduler import evaluate_weather_reading, run_cycle, test_ml_email_alert_for_user
+from backend.scheduler import evaluate_weather_reading, run_cycle, run_cycle_for_all_users, test_ml_email_alert_for_user
 from backend.weather_service import check_weather_api_key, get_weather
 from config import ANOMALY_RESULT_PATH, WEATHER_LOGS_PATH
 from utils.helpers import read_json_records, write_json_records
@@ -20,6 +22,9 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 LIVE_REFRESH_MINUTES = 10
+LIVE_REFRESH_COOLDOWN_SECONDS = 20
+_LIVE_REFRESH_GUARD = Lock()
+_LAST_LIVE_REFRESH: dict[str, float] = {}
 
 
 def _parse_iso_timestamp(value: str | None) -> datetime | None:
@@ -38,11 +43,41 @@ def _to_int(value):
 		return None
 
 
+def _normalize_location(value: str | None) -> str:
+	text = str(value or "").strip().lower()
+	if not text:
+		return ""
+	parts = [part.strip() for part in text.split(",") if part.strip()]
+	return parts[0] if parts else text
+
+
+def _try_acquire_refresh_slot(location_key: str, force_refresh: bool = False) -> bool:
+	if force_refresh:
+		return True
+	now = time.time()
+	with _LIVE_REFRESH_GUARD:
+		last_refresh = float(_LAST_LIVE_REFRESH.get(location_key, 0.0))
+		if now - last_refresh < LIVE_REFRESH_COOLDOWN_SECONDS:
+			return False
+		_LAST_LIVE_REFRESH[location_key] = now
+		return True
+
+
 def _should_refresh_for_location(location: str, force_refresh: bool = False) -> bool:
 	if force_refresh:
 		return True
 
-	recent = get_recent_weather(limit=1, location=location)
+	try:
+		recent = get_recent_weather(limit=1, location=location)
+	except Exception:
+		return True
+	if not recent:
+		normalized = _normalize_location(location)
+		if normalized and normalized != str(location).strip().lower():
+			try:
+				recent = get_recent_weather(limit=1, location=normalized)
+			except Exception:
+				return True
 	if not recent:
 		return True
 
@@ -66,11 +101,11 @@ def _row_location(row: dict) -> str:
 
 
 def _keep_only_location(file_path: str, location: str) -> None:
-	target = str(location or "").strip().lower()
+	target = _normalize_location(location)
 	if not target:
 		return
 	rows = read_json_records(file_path)
-	filtered = [row for row in rows if _row_location(row).lower() == target]
+	filtered = [row for row in rows if _normalize_location(_row_location(row)) == target]
 	write_json_records(file_path, filtered)
 
 
@@ -89,7 +124,7 @@ def _infer_alert_severity(message: str) -> str:
 
 
 def _alerts_from_anomaly_logs(location: str | None, limit: int = 20):
-	target = str(location or "").strip().lower()
+	target = _normalize_location(location)
 	rows = read_json_records(ANOMALY_RESULT_PATH)
 	items = []
 
@@ -97,9 +132,11 @@ def _alerts_from_anomaly_logs(location: str | None, limit: int = 20):
 		if not isinstance(row, dict):
 			continue
 		row_location = _row_location(row)
-		if target and row_location.lower() != target:
+		if target and _normalize_location(row_location) != target:
 			continue
 		messages = row.get("alerts") if isinstance(row.get("alerts"), list) else []
+		if not messages and bool(row.get("anomaly")):
+			messages = ["Unusual Weather Pattern Detected"]
 		if not messages:
 			continue
 		timestamp = str(row.get("timestamp") or "")
@@ -240,63 +277,98 @@ def api_scheduler_run():
 		return jsonify({"error": str(exc)}), 500
 
 
+@api_bp.post("/scheduler/run-users")
+def api_scheduler_run_users():
+	payload = request.get_json(silent=True) or {}
+	limit = _to_int(payload.get("limit"))
+
+	try:
+		result = run_cycle_for_all_users(user_limit=limit)
+		return jsonify(result), 200
+	except Exception as exc:
+		return jsonify({"error": str(exc)}), 500
+
+
 @api_bp.get("/dashboard")
 def api_dashboard_data():
 	location = (request.args.get("location") or "").strip() or None
 	weather = []
 	alerts = []
+	normalized_location = _normalize_location(location) if location else None
 
 	try:
 		weather = get_recent_weather(limit=20, location=location)
 	except Exception:
 		weather = []
 
+	if location and not weather and normalized_location and normalized_location != location.lower():
+		try:
+			weather = get_recent_weather(limit=20, location=normalized_location)
+		except Exception:
+			weather = []
+
 	try:
 		alerts = get_recent_alerts(limit=20, location=location)
 	except Exception:
 		alerts = []
 
+	if location and not alerts and normalized_location and normalized_location != location.lower():
+		try:
+			alerts = get_recent_alerts(limit=20, location=normalized_location)
+		except Exception:
+			alerts = []
+
 	if not alerts:
 		alerts = _alerts_from_anomaly_logs(location=location, limit=20)
+		if not alerts and normalized_location and normalized_location != (location or "").lower():
+			alerts = _alerts_from_anomaly_logs(location=normalized_location, limit=20)
 	return jsonify({"weather_logs": weather, "alerts": alerts}), 200
 
 
 @api_bp.get("/anomaly/live")
 def api_live_anomaly_data():
-	location = (request.args.get("location") or "").strip()
-	if not location:
-		return jsonify({"error": "location is required"}), 400
+	try:
+		location = (request.args.get("location") or "").strip()
+		if not location:
+			return jsonify({"error": "location is required"}), 400
+		location_key = _normalize_location(location)
 
-	user_id = _to_int(request.args.get("user_id"))
-	limit = _to_int(request.args.get("limit")) or 300
-	limit = max(1, min(limit, 1000))
-	force_refresh = (request.args.get("force_refresh") or "").strip().lower() == "true"
-	auto_refresh = (request.args.get("auto_refresh") or "true").strip().lower() != "false"
+		user_id = _to_int(request.args.get("user_id"))
+		limit = _to_int(request.args.get("limit")) or 300
+		limit = max(1, min(limit, 1000))
+		force_refresh = (request.args.get("force_refresh") or "").strip().lower() == "true"
+		auto_refresh = (request.args.get("auto_refresh") or "true").strip().lower() != "false"
 
-	refresh_triggered = False
-	if auto_refresh and _should_refresh_for_location(location=location, force_refresh=force_refresh):
-		run_cycle(city=location, user_id=user_id)
-		refresh_triggered = True
+		refresh_triggered = False
+		if auto_refresh and _should_refresh_for_location(location=location, force_refresh=force_refresh):
+			if _try_acquire_refresh_slot(location_key=location_key, force_refresh=force_refresh):
+				try:
+					run_cycle(city=location, user_id=user_id)
+					refresh_triggered = True
+				except Exception as exc:
+					return jsonify({"error": f"auto refresh failed: {exc}"}), 502
 
-	rows = read_json_records(ANOMALY_RESULT_PATH)
-	filtered_rows = [
-		row
-		for row in rows
-		if str(row.get("location") or "").strip().lower() == location.lower()
-	]
-	filtered_rows.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
+		rows = read_json_records(ANOMALY_RESULT_PATH)
+		filtered_rows = [
+			row
+			for row in rows
+			if _normalize_location(_row_location(row)) == location_key
+		]
+		filtered_rows.sort(key=lambda row: str(row.get("timestamp") or ""), reverse=True)
 
-	return (
-		jsonify(
-			{
-				"location": location,
-				"refresh_interval_minutes": LIVE_REFRESH_MINUTES,
-				"refresh_triggered": refresh_triggered,
-				"anomaly_logs": filtered_rows[:limit],
-			}
-		),
-		200,
-	)
+		return (
+			jsonify(
+				{
+					"location": location,
+					"refresh_interval_minutes": LIVE_REFRESH_MINUTES,
+					"refresh_triggered": refresh_triggered,
+					"anomaly_logs": filtered_rows[:limit],
+				}
+			),
+			200,
+		)
+	except Exception as exc:
+		return jsonify({"error": f"live anomaly failed: {exc}"}), 500
 
 
 @api_bp.get("/advisory")

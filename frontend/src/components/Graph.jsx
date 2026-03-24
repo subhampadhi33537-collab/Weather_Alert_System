@@ -3,7 +3,26 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 
-const CustomTooltip = ({ active, payload, label }) => {
+const getPrecisionForMetric = (dataKey) => {
+  if (dataKey === 'wind') return 2;
+  if (dataKey === 'rainfall') return 1;
+  return 1;
+};
+
+const formatMetricValue = (value, dataKey) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return '-';
+  }
+
+  const precision = getPrecisionForMetric(dataKey);
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: precision,
+  });
+};
+
+const CustomTooltip = ({ active, payload, label, dataKey }) => {
   if (active && payload && payload.length) {
     const timeLabel = typeof label === 'number'
       ? new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -16,7 +35,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <p style={{ color: '#a0aec0', margin: '0 0 4px 0' }}>{area}</p>
         {payload.map((entry, index) => (
           <p key={index} style={{ color: entry.color, margin: 0 }}>
-            {`${entry.name}: ${entry.value}`}
+            {`${entry.name}: ${formatMetricValue(entry.value, dataKey)}`}
           </p>
         ))}
       </div>
@@ -112,8 +131,9 @@ const Graph = ({ data, dataKey, title, strokeColor = "#2f80ed", anomalyTrendEnab
                 stroke="#a0aec0" 
                 tick={{ fill: '#a0aec0', fontSize: 12 }} 
                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
+                tickFormatter={(value) => formatMetricValue(value, dataKey)}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip dataKey={dataKey} />} />
               <Line 
                 type="linear" 
                 dataKey={dataKey} 

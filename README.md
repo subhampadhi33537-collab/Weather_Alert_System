@@ -266,6 +266,9 @@ Base URL: `http://127.0.0.1:5000`
 	- body: `{ "temp": 35, "humidity": 72, "pressure": 1002, "wind": 4.2 }`
 - `POST /api/scheduler/run`
 	- body: `{ "city": "Dhenkanal", "user_id": 1, "phone": "+91...", "reset_scan_files": false }`
+- `POST /api/scheduler/run-users`
+	- body: `{ "limit": 50 }` (optional)
+	- behavior: fetch weather per user using user location, run anomaly checks, and send email only to that user when anomaly is detected.
 
 ### Dashboard and Reports
 
