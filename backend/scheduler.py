@@ -2,24 +2,45 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from backend.data_storage import get_user_by_email, insert_alert, insert_weather_log
 from backend.weather_service import get_weather
 from config import ANOMALY_RESULT_PATH, WEATHER_LOGS_PATH
 from model.predict import ml_predict
+from utils.anomaly_rules import evaluate_threshold_flags
 from utils.alert import rule_based_alert, send_gmail_alert, send_sms
 from utils.helpers import append_json_record, write_json_records
 
 
-def detect_anomaly(temp: float, humidity: float, pressure: float, wind: float) -> List[str]:
-	alerts = rule_based_alert(temp=temp, wind=wind, pressure=pressure)
+def evaluate_weather_reading(
+	temp: float,
+	humidity: float,
+	pressure: float,
+	wind: float,
+	location: Optional[str] = None,
+) -> Dict[str, Any]:
+	_ = location
 	ml_result = ml_predict([temp, humidity, pressure, wind])
+	metric_flags = evaluate_threshold_flags(temp=temp, humidity=humidity, pressure=pressure, wind_ms=wind)
+	threshold_anomaly = any(metric_flags.values())
+	alerts = rule_based_alert(temp=temp, humidity=humidity, wind=wind, pressure=pressure)
 
 	if ml_result == -1:
 		alerts.append("Unusual Weather Pattern Detected")
 
-	return alerts
+	return {
+		"ml_result": int(ml_result),
+		"alerts": alerts,
+		"anomaly": bool(ml_result == -1 or threshold_anomaly),
+		"metric_flags": metric_flags,
+		"threshold_anomaly": threshold_anomaly,
+	}
+
+
+def detect_anomaly(temp: float, humidity: float, pressure: float, wind: float, location: Optional[str] = None) -> List[str]:
+	result = evaluate_weather_reading(temp=temp, humidity=humidity, pressure=pressure, wind=wind, location=location)
+	return result["alerts"]
 
 
 def run_cycle(
@@ -41,6 +62,14 @@ def run_cycle(
 		"timestamp": timestamp,
 	}
 
+	evaluation = evaluate_weather_reading(
+		temp=weather_record["temp"],
+		humidity=weather_record["humidity"],
+		pressure=weather_record["pressure"],
+		wind=weather_record["wind"],
+		location=location,
+	)
+
 	# weather_logs.json acts as prediction input dataset and stores only fetched location data.
 	if reset_scan_files:
 		write_json_records(WEATHER_LOGS_PATH, [weather_record])
@@ -58,17 +87,18 @@ def run_cycle(
 		# JSON log remains the source-of-truth prediction dataset when DB is unavailable.
 		pass
 
-	ml_result = ml_predict([weather_record["temp"], weather_record["humidity"], weather_record["pressure"], weather_record["wind"]])
-	alerts = rule_based_alert(temp=weather_record["temp"], wind=weather_record["wind"], pressure=weather_record["pressure"])
-	if ml_result == -1:
-		alerts.append("Unusual Weather Pattern Detected")
+	ml_result = int(evaluation["ml_result"])
+	alerts = list(evaluation["alerts"])
+	anomaly = bool(evaluation["anomaly"])
 
 	detection_record = {
 		"timestamp": timestamp,
 		"location": location,
 		"input": weather_record,
 		"ml_result": int(ml_result),
-		"anomaly": ml_result == -1,
+		"anomaly": anomaly,
+		"metric_flags": evaluation["metric_flags"],
+		"threshold_anomaly": evaluation["threshold_anomaly"],
 		"alerts": alerts,
 	}
 	if reset_scan_files:
@@ -89,8 +119,10 @@ def run_cycle(
 	return {
 		"weather": weather_record,
 		"ml_result": int(ml_result),
-		"anomaly": ml_result == -1,
+		"anomaly": anomaly,
 		"alerts": alerts,
+		"metric_flags": evaluation["metric_flags"],
+		"threshold_anomaly": evaluation["threshold_anomaly"],
 		"stored_alerts": stored_alerts,
 		"detection_record": detection_record,
 	}

@@ -11,7 +11,7 @@ from backend.data_storage import (
 	register_user,
 	update_user_location,
 )
-from backend.scheduler import detect_anomaly, run_cycle, test_ml_email_alert_for_user
+from backend.scheduler import evaluate_weather_reading, run_cycle, test_ml_email_alert_for_user
 from backend.weather_service import check_weather_api_key, get_weather
 from config import ANOMALY_RESULT_PATH, WEATHER_LOGS_PATH
 from utils.helpers import read_json_records, write_json_records
@@ -77,6 +77,48 @@ def _keep_only_location(file_path: str, location: str) -> None:
 def _sync_json_files_to_location(location: str) -> None:
 	_keep_only_location(WEATHER_LOGS_PATH, location)
 	_keep_only_location(ANOMALY_RESULT_PATH, location)
+
+
+def _infer_alert_severity(message: str) -> str:
+	text = str(message or "").strip().lower()
+	if any(token in text for token in ("storm", "cyclone", "extreme", "high", "very low", "unusual")):
+		return "High"
+	if any(token in text for token in ("medium", "moderate", "risk", "humid", "dry")):
+		return "Medium"
+	return "Low"
+
+
+def _alerts_from_anomaly_logs(location: str | None, limit: int = 20):
+	target = str(location or "").strip().lower()
+	rows = read_json_records(ANOMALY_RESULT_PATH)
+	items = []
+
+	for row in rows:
+		if not isinstance(row, dict):
+			continue
+		row_location = _row_location(row)
+		if target and row_location.lower() != target:
+			continue
+		messages = row.get("alerts") if isinstance(row.get("alerts"), list) else []
+		if not messages:
+			continue
+		timestamp = str(row.get("timestamp") or "")
+		for idx, message in enumerate(messages):
+			if not str(message).strip():
+				continue
+			items.append(
+				{
+					"id": f"json-{timestamp}-{idx}",
+					"user_id": None,
+					"message": str(message),
+					"location": row_location or "Unknown",
+					"timestamp": timestamp,
+					"severity": _infer_alert_severity(str(message)),
+				}
+			)
+
+	items.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
+	return items[: max(1, limit)]
 
 
 @api_bp.post("/register")
@@ -159,6 +201,7 @@ def api_weather_key_check():
 @api_bp.post("/anomaly/check")
 def api_anomaly_check():
 	payload = request.get_json(silent=True) or {}
+	location = (payload.get("location") or "").strip() or None
 
 	try:
 		temp = float(payload.get("temp"))
@@ -168,8 +211,14 @@ def api_anomaly_check():
 	except (TypeError, ValueError):
 		return jsonify({"error": "temp, humidity, pressure and wind must be numeric"}), 400
 
-	alerts = detect_anomaly(temp=temp, humidity=humidity, pressure=pressure, wind=wind)
-	return jsonify({"alerts": alerts}), 200
+	result = evaluate_weather_reading(temp=temp, humidity=humidity, pressure=pressure, wind=wind, location=location)
+	return jsonify({
+		"alerts": result["alerts"],
+		"anomaly": result["anomaly"],
+		"ml_result": result["ml_result"],
+		"metric_flags": result["metric_flags"],
+		"threshold_anomaly": result["threshold_anomaly"],
+	}), 200
 
 
 @api_bp.post("/scheduler/run")
@@ -194,8 +243,21 @@ def api_scheduler_run():
 @api_bp.get("/dashboard")
 def api_dashboard_data():
 	location = (request.args.get("location") or "").strip() or None
-	weather = get_recent_weather(limit=20, location=location)
-	alerts = get_recent_alerts(limit=20, location=location)
+	weather = []
+	alerts = []
+
+	try:
+		weather = get_recent_weather(limit=20, location=location)
+	except Exception:
+		weather = []
+
+	try:
+		alerts = get_recent_alerts(limit=20, location=location)
+	except Exception:
+		alerts = []
+
+	if not alerts:
+		alerts = _alerts_from_anomaly_logs(location=location, limit=20)
 	return jsonify({"weather_logs": weather, "alerts": alerts}), 200
 
 

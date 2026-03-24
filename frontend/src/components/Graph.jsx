@@ -65,12 +65,21 @@ const CustomizedDot = (props) => {
 };
 
 
-const Graph = ({ data, dataKey, title, strokeColor = "#00f0ff" }) => {
+const Graph = ({ data, dataKey, title, strokeColor = "#2f80ed", anomalyTrendEnabled = false }) => {
   // Ensure we have valid data and proper styling
   const displayData = Array.isArray(data)
     ? data.filter((row) => Number.isFinite(row?.ts) && Number.isFinite(row?.[dataKey]))
     : [];
-  const finalStrokeColor = strokeColor || "#00f0ff";
+  const finalStrokeColor = anomalyTrendEnabled ? '#ff3366' : (strokeColor || '#2f80ed');
+
+  const values = displayData
+    .map((row) => Number(row?.[dataKey]))
+    .filter((value) => Number.isFinite(value));
+  const minValue = values.length ? Math.min(...values) : 0;
+  const maxValue = values.length ? Math.max(...values) : 0;
+  const spread = Math.max(maxValue - minValue, 1);
+  const padding = spread * 0.12;
+  const yDomain = [minValue - padding, maxValue + padding];
   
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', height: '350px', display: 'flex', flexDirection: 'column' }}>
@@ -82,7 +91,7 @@ const Graph = ({ data, dataKey, title, strokeColor = "#00f0ff" }) => {
       ) : (
         <div style={{ flex: 1, width: '100%' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={displayData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <LineChart data={displayData} margin={{ top: 20, right: 20, left: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
               <XAxis 
                 dataKey="ts"
@@ -98,6 +107,8 @@ const Graph = ({ data, dataKey, title, strokeColor = "#00f0ff" }) => {
                 minTickGap={20}
               />
               <YAxis 
+                domain={yDomain}
+                allowDataOverflow={false}
                 stroke="#a0aec0" 
                 tick={{ fill: '#a0aec0', fontSize: 12 }} 
                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}

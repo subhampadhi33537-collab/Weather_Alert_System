@@ -3,10 +3,15 @@ import Graph from '../components/Graph';
 import { fetchCurrentWeather, fetchLiveAnomalyData } from '../api';
 import { useAuth } from '../context/AuthContext';
 
-const VERY_HIGH_TEMP_C = 40;
-const VERY_LOW_TEMP_C = 0;
-const VERY_HIGH_WIND_MS = 15;
-const VERY_HIGH_PRESSURE_HPA = 1025;
+const TEMP_MIN_C = 10;
+const TEMP_MAX_C = 40;
+const WIND_MIN_KMH = 1;
+const WIND_MAX_KMH = 60;
+const PRESSURE_MIN_HPA = 980;
+const PRESSURE_MAX_HPA = 1050;
+const HUMIDITY_MIN_PCT = 20;
+const HUMIDITY_MAX_PCT = 90;
+
 const LIVE_UI_REFRESH_MS = 5 * 1000;
 const GRAPH_HISTORY_LIMIT = 300;
 
@@ -16,6 +21,16 @@ const toTs = (value) => {
     return Date.now();
   }
   return d.getTime();
+};
+
+const buildThresholdFlags = (temp, humidity, pressure, windMs) => {
+  const windKmh = Number(windMs) * 3.6;
+  return {
+    temperature: Number(temp) < TEMP_MIN_C || Number(temp) > TEMP_MAX_C,
+    wind: windKmh < WIND_MIN_KMH || windKmh > WIND_MAX_KMH,
+    pressure: Number(pressure) < PRESSURE_MIN_HPA || Number(pressure) > PRESSURE_MAX_HPA,
+    humidity: Number(humidity) < HUMIDITY_MIN_PCT || Number(humidity) > HUMIDITY_MAX_PCT,
+  };
 };
 
 // Generate mock data for testing when no real data available
@@ -46,7 +61,7 @@ const generateTestData = (location = 'Test') => {
 };
 
 const GraphPage = ({ searchQuery }) => {
-  const [filter, setFilter] = useState('All');
+  const [anomalyTrendEnabled, setAnomalyTrendEnabled] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
   const { user } = useAuth();
@@ -85,6 +100,7 @@ const GraphPage = ({ searchQuery }) => {
       }
 
       const historyRows = Array.isArray(resp?.anomaly_logs) ? resp.anomaly_logs : [];
+
       const formattedData = historyRows.map((row, idx) => {
         const input = row?.input || {};
         const timestamp = row?.timestamp || input?.timestamp;
@@ -93,12 +109,22 @@ const GraphPage = ({ searchQuery }) => {
         const wind = Number(input?.wind ?? 0);
         const pressure = Number(input?.pressure ?? 0);
         const humidity = Number(input?.humidity ?? 0);
+        const windKmh = wind * 3.6;
 
-        const isTempAnomaly = temp >= VERY_HIGH_TEMP_C || temp <= VERY_LOW_TEMP_C;
-        const isWindAnomaly = wind >= VERY_HIGH_WIND_MS;
-        const isPressureAnomaly = pressure >= VERY_HIGH_PRESSURE_HPA;
-
-        const isThresholdAnomaly = isTempAnomaly || isWindAnomaly || isPressureAnomaly;
+        const backendFlags = row?.metric_flags || {};
+        const isTempAnomaly = typeof backendFlags.temperature === 'boolean'
+          ? backendFlags.temperature
+          : buildThresholdFlags(temp, humidity, pressure, wind).temperature;
+        const isWindAnomaly = typeof backendFlags.wind === 'boolean'
+          ? backendFlags.wind
+          : buildThresholdFlags(temp, humidity, pressure, wind).wind;
+        const isPressureAnomaly = typeof backendFlags.pressure === 'boolean'
+          ? backendFlags.pressure
+          : buildThresholdFlags(temp, humidity, pressure, wind).pressure;
+        const isHumidityAnomaly = typeof backendFlags.humidity === 'boolean'
+          ? backendFlags.humidity
+          : buildThresholdFlags(temp, humidity, pressure, wind).humidity;
+        const backendAnomaly = typeof row?.anomaly === 'boolean' ? row.anomaly : row?.ml_result === -1;
 
         return {
           id: idx,
@@ -110,12 +136,13 @@ const GraphPage = ({ searchQuery }) => {
             : '-',
           temperature: parseFloat(temp.toFixed(1)),
           rainfall: parseFloat(pressure.toFixed(1)),
-          wind: parseFloat(wind.toFixed(2)),
+          wind: parseFloat(windKmh.toFixed(2)),
           humidity: parseFloat(humidity.toFixed(1)),
-          isAnomaly: isThresholdAnomaly,
+          isAnomaly: Boolean(backendAnomaly || isTempAnomaly || isWindAnomaly || isPressureAnomaly || isHumidityAnomaly),
           isTempAnomaly,
           isWindAnomaly,
           isPressureAnomaly,
+          isHumidityAnomaly,
         };
       });
 
@@ -128,10 +155,13 @@ const GraphPage = ({ searchQuery }) => {
         const wind = Number(currentWeather?.wind ?? 0);
         const pressure = Number(currentWeather?.pressure ?? 0);
         const humidity = Number(currentWeather?.humidity ?? 0);
+        const flags = buildThresholdFlags(temp, humidity, pressure, wind);
+        const windKmh = wind * 3.6;
 
-        const isTempAnomaly = temp >= VERY_HIGH_TEMP_C || temp <= VERY_LOW_TEMP_C;
-        const isWindAnomaly = wind >= VERY_HIGH_WIND_MS;
-        const isPressureAnomaly = pressure >= VERY_HIGH_PRESSURE_HPA;
+        const isTempAnomaly = flags.temperature;
+        const isWindAnomaly = flags.wind;
+        const isPressureAnomaly = flags.pressure;
+        const isHumidityAnomaly = flags.humidity;
 
         newLivePoint = {
           id: `live-${currentTs}`,
@@ -141,12 +171,13 @@ const GraphPage = ({ searchQuery }) => {
           name: new Date(currentTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           temperature: parseFloat(temp.toFixed(1)),
           rainfall: parseFloat(pressure.toFixed(1)),
-          wind: parseFloat(wind.toFixed(2)),
+          wind: parseFloat(windKmh.toFixed(2)),
           humidity: parseFloat(humidity.toFixed(1)),
-          isAnomaly: isTempAnomaly || isWindAnomaly || isPressureAnomaly,
+          isAnomaly: isTempAnomaly || isWindAnomaly || isPressureAnomaly || isHumidityAnomaly,
           isTempAnomaly,
           isWindAnomaly,
           isPressureAnomaly,
+          isHumidityAnomaly,
         };
       }
 
@@ -180,12 +211,15 @@ const GraphPage = ({ searchQuery }) => {
           const wind = Number(input?.wind ?? 0);
           const pressure = Number(input?.pressure ?? 0);
           const humidity = Number(input?.humidity ?? 0);
+          const flags = buildThresholdFlags(temp, humidity, pressure, wind);
+          const windKmh = wind * 3.6;
 
-          const isTempAnomaly = temp >= VERY_HIGH_TEMP_C || temp <= VERY_LOW_TEMP_C;
-          const isWindAnomaly = wind >= VERY_HIGH_WIND_MS;
-          const isPressureAnomaly = pressure >= VERY_HIGH_PRESSURE_HPA;
+          const isTempAnomaly = flags.temperature;
+          const isWindAnomaly = flags.wind;
+          const isPressureAnomaly = flags.pressure;
+          const isHumidityAnomaly = flags.humidity;
 
-          const isThresholdAnomaly = isTempAnomaly || isWindAnomaly || isPressureAnomaly;
+          const isThresholdAnomaly = isTempAnomaly || isWindAnomaly || isPressureAnomaly || isHumidityAnomaly;
 
           return {
             id: idx,
@@ -197,12 +231,13 @@ const GraphPage = ({ searchQuery }) => {
               : '-',
             temperature: parseFloat(temp.toFixed(1)),
             rainfall: parseFloat(pressure.toFixed(1)),
-            wind: parseFloat(wind.toFixed(2)),
+            wind: parseFloat(windKmh.toFixed(2)),
             humidity: parseFloat(humidity.toFixed(1)),
             isAnomaly: isThresholdAnomaly,
             isTempAnomaly,
             isWindAnomaly,
             isPressureAnomaly,
+            isHumidityAnomaly,
           };
         });
         setChartData(fallback.sort((a, b) => a.ts - b.ts));
@@ -239,21 +274,30 @@ const GraphPage = ({ searchQuery }) => {
         </div>
         
         <div className="glass-panel flex-center" style={{ padding: '0.5rem', gap: '0.5rem', borderRadius: '50px' }}>
-          {['All'].map(f => (
-            <button 
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: '0.4rem 1rem',
-                borderRadius: '50px',
-                background: filter === f ? 'var(--accent-blue)' : 'transparent',
-                color: filter === f ? '#fff' : 'var(--text-secondary)',
-                transition: 'all 0.3s ease'
-              }}
-            >
-              {f}
-            </button>
-          ))}
+          <button
+            onClick={() => setAnomalyTrendEnabled(false)}
+            style={{
+              padding: '0.4rem 1rem',
+              borderRadius: '50px',
+              background: !anomalyTrendEnabled ? 'var(--accent-blue)' : 'transparent',
+              color: !anomalyTrendEnabled ? '#fff' : 'var(--text-secondary)',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Normal Trend
+          </button>
+          <button
+            onClick={() => setAnomalyTrendEnabled(true)}
+            style={{
+              padding: '0.4rem 1rem',
+              borderRadius: '50px',
+              background: anomalyTrendEnabled ? '#ff3366' : 'transparent',
+              color: anomalyTrendEnabled ? '#fff' : 'var(--text-secondary)',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Full Anomaly Trend
+          </button>
         </div>
       </div>
 
@@ -262,19 +306,22 @@ const GraphPage = ({ searchQuery }) => {
           title="Temperature Trends (°C)" 
           data={chartData} 
           dataKey="temperature" 
-          strokeColor="#ff9900"
+          strokeColor="#2f80ed"
+          anomalyTrendEnabled={anomalyTrendEnabled}
         />
         <Graph 
           title="Atmospheric Pressure (hPa)" 
           data={chartData} 
           dataKey="rainfall" 
-          strokeColor="#00f0ff"
+          strokeColor="#2f80ed"
+          anomalyTrendEnabled={anomalyTrendEnabled}
         />
         <Graph 
           title="Wind Speed Variations (km/h)" 
           data={chartData} 
           dataKey="wind" 
-          strokeColor="#00e676"
+          strokeColor="#2f80ed"
+          anomalyTrendEnabled={anomalyTrendEnabled}
         />
       </div>
 

@@ -21,11 +21,11 @@ const AlertsPage = () => {
       if (resp && resp.alerts) {
         const mappedAlerts = resp.alerts.map((a, idx) => ({
           id: a.id || idx,
-          title: `Alert for ${a.location}`,
-          description: a.message,
-          time: new Date(a.timestamp).toLocaleString(),
-          location: a.location,
-          severity: 'High' 
+          title: `Alert for ${a.location || 'Unknown'}`,
+          description: a.message || 'Anomaly condition detected.',
+          time: a.timestamp ? new Date(a.timestamp).toLocaleString() : 'Now',
+          location: a.location || 'Unknown',
+          severity: ['High', 'Medium', 'Low'].includes(a.severity) ? a.severity : 'High'
         }));
         setAlertsData(mappedAlerts);
       }
