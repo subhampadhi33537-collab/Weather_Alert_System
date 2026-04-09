@@ -61,68 +61,8 @@ const Map = ({ searchedLocationData, activeLayer }) => {
           'https://raw.githubusercontent.com/danwild/leaflet-velocity/master/demo/wind-global.json'
         );
         setWindData(res.data);
-
-<<<<<<< HEAD
-    const legend = L.control({ position: 'bottomright' });
-    legend.onAdd = function () {
-        const div = L.DomUtil.create('div', 'info legend glass-panel');
-        div.style.padding = '10px 15px';
-        div.style.background = 'rgba(10, 17, 40, 0.95)';
-        div.style.color = '#fff';
-        div.style.borderRadius = '8px';
-        div.style.border = '1px solid rgba(0,240,255,0.3)';
-        
-        if (activeLayer === 'Anomalies') {
-            div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Temperature</h4>';
-            const grades = [0, 15, 25, 35];
-            const labels = ['Cold', 'Moderate', 'Warm', 'Hot'];
-            const colors = ['#3b82f6', '#22c55e', '#eab308', '#ef4444'];
-            for (let i = 0; i < grades.length; i++) {
-                div.innerHTML +=
-                    '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' +
-                    '<span style="background:' + colors[i] + '; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> ' +
-                    '<span style="font-size: 12px;">' + labels[i] + '</span>' +
-                    '</div>';
-            }
-        } else if (activeLayer === 'Humidity') {
-          div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Humidity</h4>';
-          div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#0ea5e9; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Humidity Level</span></div>';
-        } else if (activeLayer === 'Wind Speed') {
-            div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Wind Speed</h4>';
-            div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#a855f7; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Wind Intensity</span></div>';
-        } else if (activeLayer === 'Atmospheric Pressure') {
-          div.innerHTML += '<h4 style="margin: 0 0 8px 0; font-size:14px; color: var(--accent-cyan);">Atmospheric Pressure</h4>';
-          div.innerHTML += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"><span style="background:#14b8a6; width: 12px; height: 12px; display: inline-block; border-radius: 50%;"></span> <span style="font-size: 12px;">Pressure Level</span></div>';
-        }
-
-        return div;
-    };
-    legend.addTo(mapInstance.current);
-    legendRef.current = legend;
-
-  }, [activeLayer]);
-
-  // Handle Map Panning on Search
-  useEffect(() => {
-    if (searchedLocationData && mapInstance.current && searchedLocationData.lat && searchedLocationData.lon) {
-      const { lat, lon } = searchedLocationData;
-      mapInstance.current.flyTo([lat, lon], 7, { animate: true, duration: 1.5 });
-    }
-  }, [searchedLocationData]);
-
-  // Handle Search Result Data plotting and Layer Coloring
-  useEffect(() => {
-    if (searchedLocationData && mapInstance.current && searchedLocationData.lat && searchedLocationData.lon) {
-      const { lat, lon, temp, wind, humidity, pressure, city } = searchedLocationData;
-      const windKmh = Number(wind) * 3.6;
-      
-      // Remove previous search marker if exists
-      if (searchMarkerRef.current) {
-        mapInstance.current.removeLayer(searchMarkerRef.current);
-=======
       } catch (err) {
         console.error(err);
->>>>>>> adding_UI1
       }
     };
 
@@ -130,47 +70,34 @@ const Map = ({ searchedLocationData, activeLayer }) => {
   }, []);
 
   // 🌡️ HEATMAP LAYER
- useEffect(() => {
-  if (!mapInstance.current || heatData.length === 0) return;
+  useEffect(() => {
+    if (!mapInstance.current || heatData.length === 0) return;
 
-<<<<<<< HEAD
-      searchMarkerRef.current.bindPopup(`
-         <div style="font-family: 'Inter', sans-serif;">
-           <h4 style="margin:0 0 5px 0; color: #333; display: flex; align-items: center; gap: 5px;">
-              📍 ${city}
-           </h4>
-           <p style="margin:0; color: #666;"><b>Temperature:</b> ${temp}°C</p>
-           <p style="margin:0; color: #666;"><b>Wind Speed:</b> ${Number.isFinite(windKmh) ? windKmh.toFixed(2) : '-'} km/h</p>
-           <p style="margin:0; color: #666;"><b>Humidity:</b> ${humidity}%</p>
-          <p style="margin:0; color: #666;"><b>Atmospheric Pressure:</b> ${pressure} hPa</p>
-         </div>
-      `).openPopup();
-=======
-  // Create only once
-  if (!heatLayerRef.current) {
-    heatLayerRef.current = L.heatLayer(heatData, {
-      radius: 80,
-      blur: 50,
-      maxZoom: 10,
-      minOpacity: 0.6,
-      gradient: {
-        0.1: "#0000ff",
-        0.3: "#00ffff",
-        0.5: "#00ff00",
-        0.7: "#ffff00",
-        1.0: "#ff0000"
-      }
-    }).addTo(mapInstance.current);
-  }
+    // Create only once
+    if (!heatLayerRef.current) {
+      heatLayerRef.current = L.heatLayer(heatData, {
+        radius: 80,
+        blur: 50,
+        maxZoom: 10,
+        minOpacity: 0.6,
+        gradient: {
+          0.1: "#0000ff",
+          0.3: "#00ffff",
+          0.5: "#00ff00",
+          0.7: "#ffff00",
+          1.0: "#ff0000"
+        }
+      }).addTo(mapInstance.current);
+    }
 
-  // Toggle visibility
-  if (activeLayer?.toLowerCase().includes("temp")) {
-    heatLayerRef.current.addTo(mapInstance.current);
-  } else {
-    mapInstance.current.removeLayer(heatLayerRef.current);
-  }
+    // Toggle visibility
+    if (activeLayer?.toLowerCase().includes("temp")) {
+      heatLayerRef.current.addTo(mapInstance.current);
+    } else {
+      mapInstance.current.removeLayer(heatLayerRef.current);
+    }
 
-}, [heatData, activeLayer]);
+  }, [heatData, activeLayer]);
 
   // 🌬️ WIND LAYER
   useEffect(() => {
@@ -179,7 +106,6 @@ const Map = ({ searchedLocationData, activeLayer }) => {
     if (windLayerRef.current) {
       mapInstance.current.removeLayer(windLayerRef.current);
       windLayerRef.current = null;
->>>>>>> adding_UI1
     }
 
     if (activeLayer && activeLayer.toLowerCase().includes("wind")) {

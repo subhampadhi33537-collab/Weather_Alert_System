@@ -1,0 +1,11 @@
+[33mdf3838a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fifth modification
+[33me4b6d27[m[33m ([m[1;31morigin/main[m[33m)[m fourth_modification
+[33mbf2aeec[m[33m ([m[1;31morigin/adding_UI1[m[33m, [m[1;32madding_UI1[m[33m)[m third_modification
+[33m6ead900[m windspeed_added
+[33m9c0e1a0[m Improve alerts flow, anomaly stability, and email recommendation delivery
+[33mc3ab34e[m Update anomaly rules, graph visibility, and alert fallback flow
+[33m7e940e0[m Update live weather anomaly system and map/graph behavior
+[33mf077bb4[m README.md changed
+[33m05f60a2[m Update README1.md
+[33mcac16cb[m content changed
+[33maa797b3[m first commit
