@@ -17,6 +17,7 @@ const getTempColor = (temp) => {
 const Map = ({ searchedLocationData, activeLayer }) => {
   const mapContainer = useRef(null);
   const mapInstance = useRef(null);
+  const tileLayerRef = useRef(null);
 
   const heatLayerRef = useRef(null);
   const windLayerRef = useRef(null);
@@ -24,6 +25,7 @@ const Map = ({ searchedLocationData, activeLayer }) => {
 
   const [heatData, setHeatData] = useState([]);
   const [windData, setWindData] = useState(null);
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
 
   // 🚀 INIT MAP
   useEffect(() => {
@@ -32,11 +34,30 @@ const Map = ({ searchedLocationData, activeLayer }) => {
         preferCanvas: true
       }).setView([20.3, 85.8], 5);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // Initial tile layer (light theme)
+      tileLayerRef.current = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(mapInstance.current);
     }
   }, []);
+
+  // 🎨 THEME CHANGE
+  useEffect(() => {
+    if (!mapInstance.current || !tileLayerRef.current) return;
+
+    // Remove current tile layer
+    mapInstance.current.removeLayer(tileLayerRef.current);
+
+    // Add new tile layer based on theme
+    const tileUrl = isDarkTheme 
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const attribution = isDarkTheme 
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; OpenStreetMap contributors';
+    
+    tileLayerRef.current = L.tileLayer(tileUrl, { attribution }).addTo(mapInstance.current);
+  }, [isDarkTheme]);
 
   // 🚀 FETCH DATA
   useEffect(() => {
@@ -169,6 +190,13 @@ const Map = ({ searchedLocationData, activeLayer }) => {
   return (
     <div className="map-wrapper">
       <div ref={mapContainer} className="map-container" />
+      <button 
+        className="theme-toggle-btn"
+        onClick={() => setIsDarkTheme(!isDarkTheme)}
+        title={isDarkTheme ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+      >
+        {isDarkTheme ? '☀️' : '🌙'}
+      </button>
     </div>
   );
 };

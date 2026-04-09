@@ -12,6 +12,25 @@
   height: 100%;
 }
 
+.theme-toggle-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: background 0.3s;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+}
+
 /* Leaflet specific overrides to make it look decent with dark theme */
 /* If you want dark tiles you need a dark tile provider, but we are using default OSM */
 .leaflet-container {
