@@ -3,8 +3,8 @@ services:
     name: weather-alert-system-backend
     env: python311
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 60 app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11

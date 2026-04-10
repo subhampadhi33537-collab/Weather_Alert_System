@@ -15,6 +15,8 @@ from config import DATABASE_URL, DB_SSLMODE, SUPABASE_KEY, SUPABASE_URL
 
 
 def get_pg_connection() -> PGConnection:
+	if not DATABASE_URL:
+		raise ValueError("DATABASE_URL environment variable is not set")
 	return psycopg2.connect(DATABASE_URL, connect_timeout=10, sslmode=DB_SSLMODE)
 
 

@@ -6,13 +6,13 @@ load_dotenv()
 
 
 def get_required_env(name: str) -> str:
-	value = os.getenv(name, "").strip()
-	if not value:
-		raise ValueError(f"Missing required environment variable: {name}")
-	return value
+		value = os.getenv(name, "").strip()
+		if not value:
+			return ""
+		return value
 
 
-DATABASE_URL = get_required_env("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_SSLMODE = os.getenv("DB_SSLMODE", "require").strip() or "require"
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()

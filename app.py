@@ -6,10 +6,13 @@ from backend.routes import api_bp
 from database.queries import check_connections
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173", "https://*.vercel.app"], supports_credentials=True)
 app.register_blueprint(api_bp)
 
-init_tables()
+try:
+	init_tables()
+except Exception as e:
+	print(f"Warning: Failed to initialize tables on startup: {e}")
 
 
 @app.route("/")
