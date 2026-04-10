@@ -32,3 +32,7 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# Runtime data files
+data/anomoly_result.json
+data/weather_logs.json
