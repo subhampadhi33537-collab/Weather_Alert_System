@@ -22,10 +22,22 @@ const formatMetricValue = (value, dataKey) => {
   });
 };
 
+const formatScanTime = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    return '-';
+  }
+  return new Date(n).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
+
 const CustomTooltip = ({ active, payload, label, dataKey }) => {
   if (active && payload && payload.length) {
     const timeLabel = typeof label === 'number'
-      ? new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      ? formatScanTime(label)
       : `${label}`;
     const area = payload?.[0]?.payload?.area || payload?.[0]?.payload?.location || 'Unknown Area';
 
@@ -94,11 +106,18 @@ const Graph = ({ data, dataKey, title, strokeColor = "#2f80ed", anomalyTrendEnab
   const values = displayData
     .map((row) => Number(row?.[dataKey]))
     .filter((value) => Number.isFinite(value));
+  const tsValues = displayData
+    .map((row) => Number(row?.ts))
+    .filter((value) => Number.isFinite(value));
   const minValue = values.length ? Math.min(...values) : 0;
   const maxValue = values.length ? Math.max(...values) : 0;
   const spread = Math.max(maxValue - minValue, 1);
   const padding = spread * 0.12;
   const yDomain = [minValue - padding, maxValue + padding];
+  const minTs = tsValues.length ? Math.min(...tsValues) : Date.now();
+  const maxTs = tsValues.length ? Math.max(...tsValues) : Date.now();
+  const tsPadding = minTs === maxTs ? 10 * 1000 : 5 * 1000;
+  const xDomain = [minTs - tsPadding, maxTs + tsPadding];
   
   return (
     <div className="glass-panel" style={{ padding: '1.5rem', height: '350px', display: 'flex', flexDirection: 'column' }}>
@@ -115,14 +134,11 @@ const Graph = ({ data, dataKey, title, strokeColor = "#2f80ed", anomalyTrendEnab
               <XAxis 
                 dataKey="ts"
                 type="number"
-                domain={[
-                  (min) => min - 30 * 60 * 1000,
-                  (max) => max + 30 * 60 * 1000,
-                ]}
+                domain={xDomain}
                 stroke="#a0aec0" 
                 tick={{ fill: '#a0aec0', fontSize: 12 }} 
                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
-                tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                tickFormatter={(value) => formatScanTime(value)}
                 minTickGap={20}
               />
               <YAxis 

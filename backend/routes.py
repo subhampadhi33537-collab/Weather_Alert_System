@@ -265,11 +265,18 @@ def api_scheduler_run():
 	if not city:
 		return jsonify({"error": "city is required"}), 400
 	user_id = payload.get("user_id")
+	user_email = (payload.get("user_email") or "").strip().lower() or None
 	phone = (payload.get("phone") or "").strip() or None
 	reset_scan_files = bool(payload.get("reset_scan_files", False))
 
 	try:
-		result = run_cycle(city=city, user_id=user_id, phone=phone, reset_scan_files=reset_scan_files)
+		result = run_cycle(
+			city=city,
+			user_id=user_id,
+			user_email=user_email,
+			phone=phone,
+			reset_scan_files=reset_scan_files,
+		)
 		result["weather_logs_path"] = WEATHER_LOGS_PATH
 		result["anomoly_result_path"] = ANOMALY_RESULT_PATH
 		return jsonify(result), 200
@@ -334,6 +341,7 @@ def api_live_anomaly_data():
 		location_key = _normalize_location(location)
 
 		user_id = _to_int(request.args.get("user_id"))
+		user_email = (request.args.get("user_email") or "").strip().lower() or None
 		limit = _to_int(request.args.get("limit")) or 300
 		limit = max(1, min(limit, 1000))
 		force_refresh = (request.args.get("force_refresh") or "").strip().lower() == "true"
@@ -343,7 +351,7 @@ def api_live_anomaly_data():
 		if auto_refresh and _should_refresh_for_location(location=location, force_refresh=force_refresh):
 			if _try_acquire_refresh_slot(location_key=location_key, force_refresh=force_refresh):
 				try:
-					run_cycle(city=location, user_id=user_id)
+					run_cycle(city=location, user_id=user_id, user_email=user_email)
 					refresh_triggered = True
 				except Exception as exc:
 					return jsonify({"error": f"auto refresh failed: {exc}"}), 502

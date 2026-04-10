@@ -27,7 +27,7 @@ export const fetchCurrentWeather = async (city = 'Dhenkanal') => {
     }
 };
 
-export const fetchLiveAnomalyData = async (location, userId = null, limit = 300) => {
+export const fetchLiveAnomalyData = async (location, userId = null, userEmail = null, limit = 300, forceRefresh = false) => {
     try {
         if (!location) {
             return { anomaly_logs: [] };
@@ -39,8 +39,16 @@ export const fetchLiveAnomalyData = async (location, userId = null, limit = 300)
             limit: String(limit)
         });
 
+        if (forceRefresh) {
+            params.set('force_refresh', 'true');
+        }
+
         if (userId !== null && userId !== undefined) {
             params.set('user_id', String(userId));
+        }
+
+        if (userEmail) {
+            params.set('user_email', String(userEmail));
         }
 
         const response = await fetch(`/api/anomaly/live?${params.toString()}`);

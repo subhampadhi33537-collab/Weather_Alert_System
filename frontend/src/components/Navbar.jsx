@@ -2,27 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Search, Bell, User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchDashboardData } from '../api';
 import './Navbar.css';
 
 const Navbar = ({ onSearch }) => {
   const [inputValue, setInputValue] = useState('');
-  const [alertsCount, setAlertsCount] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const checkAlerts = async () => {
-      const data = await fetchDashboardData(user?.location);
-      if (data && data.alerts) {
-        setAlertsCount(data.alerts.length);
-      }
-    };
-    checkAlerts();
-    // Poll every 1 minute
-    const interval = setInterval(checkAlerts, 60000);
-    return () => clearInterval(interval);
-  }, [user?.location]);
 
   const handleLogout = () => {
     logout();
@@ -96,7 +81,6 @@ const Navbar = ({ onSearch }) => {
         </div>
         <button className="icon-btn" onClick={() => navigate('/alerts')}>
           <Bell size={20} />
-          {alertsCount > 0 && <span className="badge">{alertsCount}</span>}
         </button>
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

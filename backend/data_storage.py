@@ -161,6 +161,28 @@ def get_user_by_email(email: str) -> Optional[Dict]:
 	}
 
 
+def get_user_by_id(user_id: int) -> Optional[Dict]:
+	query = """
+	SELECT id, email, location, created_at
+	FROM public.users
+	WHERE id = %s;
+	"""
+	with get_pg_connection() as conn:
+		with conn.cursor() as cursor:
+			cursor.execute(query, (user_id,))
+			row = cursor.fetchone()
+
+	if not row:
+		return None
+
+	return {
+		"id": row[0],
+		"email": row[1],
+		"location": row[2],
+		"created_at": row[3].isoformat(),
+	}
+
+
 def get_all_users() -> List[Dict]:
 	query = """
 	SELECT id, email, location, created_at

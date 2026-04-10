@@ -4,12 +4,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from backend.data_storage import get_all_users, get_user_by_email, insert_alert, insert_weather_log
+from backend.data_storage import get_all_users, get_user_by_email, get_user_by_id, insert_alert, insert_weather_log
 from backend.weather_service import get_weather
 from config import ANOMALY_RESULT_PATH, WEATHER_LOGS_PATH
 from model.predict import ml_predict
 from utils.anomaly_rules import evaluate_threshold_flags
-from utils.alert import rule_based_alert, send_gmail_alert, send_sms
+from utils.alert import check_and_send_alert, rule_based_alert, send_sms
 from utils.helpers import append_json_record, write_json_records
 
 
@@ -75,6 +75,7 @@ def build_weather_recommendations(temp: float, humidity: float, pressure: float,
 def run_cycle(
 	city: str,
 	user_id: Optional[int] = None,
+	user_email: Optional[str] = None,
 	phone: Optional[str] = None,
 	reset_scan_files: bool = False,
 ) -> Dict:
@@ -149,6 +150,27 @@ def run_cycle(
 		if phone:
 			send_sms(message=message, phone=phone)
 
+	gmail_sent = False
+	if anomaly:
+		try:
+			recipient_email = str(user_email or "").strip().lower()
+			if not recipient_email and user_id is not None:
+				user = get_user_by_id(int(user_id))
+				recipient_email = str((user or {}).get("email") or "").strip().lower()
+
+			if recipient_email:
+				gmail_sent = check_and_send_alert(
+					{
+						"temp": weather_record["temp"],
+						"humidity": weather_record["humidity"],
+						"wind": weather_record["wind"],
+						"pressure": weather_record["pressure"],
+					},
+					user_email=recipient_email,
+				)
+		except Exception:
+			gmail_sent = False
+
 	return {
 		"weather": weather_record,
 		"ml_result": int(ml_result),
@@ -157,6 +179,7 @@ def run_cycle(
 		"metric_flags": evaluation["metric_flags"],
 		"threshold_anomaly": evaluation["threshold_anomaly"],
 		"stored_alerts": stored_alerts,
+		"gmail_sent": gmail_sent,
 		"detection_record": detection_record,
 	}
 
@@ -189,24 +212,7 @@ def run_cycle_for_user(user: Dict[str, Any]) -> Dict[str, Any]:
 	)
 
 	if is_anomaly:
-		alerts = cycle_result.get("alerts") or ["Unusual Weather Pattern Detected"]
-		body = (
-			"Weather anomaly detected for your location.\n\n"
-			f"User: {email}\n"
-			f"Location: {location}\n"
-			f"Temperature: {weather['temp']} C\n"
-			f"Humidity: {weather['humidity']} %\n"
-			f"Pressure: {weather['pressure']} hPa\n"
-			f"Wind: {weather['wind']} m/s\n"
-			f"ML Result: {cycle_result['ml_result']}\n"
-			"Alerts:\n"
-			+ "\n".join(f"- {message}" for message in alerts)
-			+ "\n\nRecommendations:\n"
-			+ "\n".join(f"- {item}" for item in recommendations)
-		)
-
-		subject = f"Weather Anomaly Alert - {location}"
-		email_sent = send_gmail_alert(to_email=email, subject=subject, body=body)
+		email_sent = bool(cycle_result.get("gmail_sent"))
 
 	return {
 		"user_id": user_id,

@@ -30,3 +30,10 @@ TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "").strip()
 
 GMAIL_SENDER_EMAIL = os.getenv("GMAIL_SENDER_EMAIL", "").strip()
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587").strip() or "587")
+EMAIL_USER = (os.getenv("EMAIL_USER", "").strip() or GMAIL_SENDER_EMAIL)
+EMAIL_PASS = (os.getenv("EMAIL_PASS", "").strip() or GMAIL_APP_PASSWORD)
+
+ALERT_COOLDOWN_SECONDS = int(os.getenv("ALERT_COOLDOWN_SECONDS", "300").strip() or "300")
