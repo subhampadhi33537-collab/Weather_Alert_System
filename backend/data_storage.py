@@ -1,11 +1,27 @@
 from __future__ import annotations
 
+from threading import Lock
 from typing import Dict, List, Optional
 
 import psycopg2
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database.db import get_pg_connection
+
+
+_TABLE_INIT_LOCK = Lock()
+_TABLES_READY = False
+
+
+def _ensure_tables_ready() -> None:
+	global _TABLES_READY
+	if _TABLES_READY:
+		return
+	with _TABLE_INIT_LOCK:
+		if _TABLES_READY:
+			return
+		init_tables()
+		_TABLES_READY = True
 
 
 def init_tables() -> None:
@@ -49,6 +65,7 @@ def init_tables() -> None:
 
 
 def register_user(email: str, password: str, location: str) -> Dict:
+	_ensure_tables_ready()
 	password_hash = generate_password_hash(password, method="scrypt")
 	query = """
 	INSERT INTO public.users (email, password, location)
@@ -78,6 +95,7 @@ def _is_hashed(password: str) -> bool:
 
 
 def login_user(email: str, password: str) -> Optional[Dict]:
+	_ensure_tables_ready()
 	query = """
 	SELECT id, email, password, location, created_at
 	FROM public.users
@@ -118,6 +136,7 @@ def login_user(email: str, password: str) -> Optional[Dict]:
 
 def update_user_location(user_id: int, location: str) -> Optional[Dict]:
 	"""Update user location and return updated user data."""
+	_ensure_tables_ready()
 	query = """
 	UPDATE public.users SET location = %s WHERE id = %s
 	RETURNING id, email, location, created_at;
@@ -140,6 +159,7 @@ def update_user_location(user_id: int, location: str) -> Optional[Dict]:
 
 
 def get_user_by_email(email: str) -> Optional[Dict]:
+	_ensure_tables_ready()
 	query = """
 	SELECT id, email, location, created_at
 	FROM public.users
@@ -162,6 +182,7 @@ def get_user_by_email(email: str) -> Optional[Dict]:
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict]:
+	_ensure_tables_ready()
 	query = """
 	SELECT id, email, location, created_at
 	FROM public.users
@@ -184,6 +205,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict]:
 
 
 def get_all_users() -> List[Dict]:
+	_ensure_tables_ready()
 	query = """
 	SELECT id, email, location, created_at
 	FROM public.users
@@ -208,6 +230,7 @@ def get_all_users() -> List[Dict]:
 
 
 def insert_weather_log(temp: float, humidity: float, pressure: float, wind: float, location: str) -> Dict:
+	_ensure_tables_ready()
 	query = """
 	INSERT INTO public.weather_logs (temp, humidity, pressure, wind, location)
 	VALUES (%s, %s, %s, %s, %s)
@@ -231,6 +254,7 @@ def insert_weather_log(temp: float, humidity: float, pressure: float, wind: floa
 
 
 def insert_alert(message: str, location: str, user_id: Optional[int] = None) -> Dict:
+	_ensure_tables_ready()
 	query = """
 	INSERT INTO public.alerts (user_id, message, location)
 	VALUES (%s, %s, %s)
@@ -252,6 +276,7 @@ def insert_alert(message: str, location: str, user_id: Optional[int] = None) -> 
 
 
 def get_recent_weather(limit: int = 20, location: Optional[str] = None) -> List[Dict]:
+	_ensure_tables_ready()
 	if location:
 		query = """
 		SELECT id, temp, humidity, pressure, wind, location, timestamp
@@ -300,6 +325,7 @@ def _infer_alert_severity(message: str) -> str:
 
 
 def get_recent_alerts(limit: int = 20, location: Optional[str] = None) -> List[Dict]:
+	_ensure_tables_ready()
 	if location:
 		query = """
 		SELECT id, user_id, message, location, timestamp

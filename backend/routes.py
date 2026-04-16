@@ -174,6 +174,8 @@ def api_register():
 		return jsonify({"message": "registered", "user": user}), 201
 	except ValueError as exc:
 		return jsonify({"error": str(exc)}), 400
+	except Exception:
+		return jsonify({"error": "registration service unavailable"}), 503
 
 
 @api_bp.post("/login")
@@ -185,13 +187,16 @@ def api_login():
 	if not (email and password):
 		return jsonify({"error": "email and password are required"}), 400
 
-	user = login_user(email=email, password=password)
-	if not user:
-		return jsonify({"error": "invalid credentials"}), 401
+	try:
+		user = login_user(email=email, password=password)
+		if not user:
+			return jsonify({"error": "invalid credentials"}), 401
 
-	_sync_json_files_to_location(str(user.get("location") or ""))
+		_sync_json_files_to_location(str(user.get("location") or ""))
 
-	return jsonify({"message": "login successful", "user": user}), 200
+		return jsonify({"message": "login successful", "user": user}), 200
+	except Exception:
+		return jsonify({"error": "login service unavailable"}), 503
 
 
 

@@ -1,3 +1,6 @@
+import os
+import re
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 
@@ -6,7 +9,48 @@ from backend.routes import api_bp
 from database.queries import check_connections
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173", "https://*.vercel.app"], supports_credentials=True)
+
+
+def _origin_rule(value: str):
+	origin = str(value or "").strip()
+	if not origin:
+		return None
+	if origin.startswith("^"):
+		return re.compile(origin)
+	if "*" in origin:
+		escaped = re.escape(origin).replace(r"\*", r"[^/]+")
+		return re.compile(f"^{escaped}$")
+	return origin
+
+
+def _cors_origins():
+	raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+	if raw:
+		candidates = [part.strip() for part in raw.split(",") if part.strip()]
+	else:
+		candidates = [
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"https://*.vercel.app",
+		]
+
+	resolved = []
+	for item in candidates:
+		rule = _origin_rule(item)
+		if rule is not None:
+			resolved.append(rule)
+	return resolved
+
+
+CORS(
+	app,
+	origins=_cors_origins(),
+	supports_credentials=False,
+	allow_headers=["Content-Type", "Authorization"],
+	methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 app.register_blueprint(api_bp)
 
 try:
