@@ -1,8 +1,13 @@
 // API Service for connecting to Flask Backend
 
+const DEFAULT_API_BASE_URL = 'https://weather-alert-system-gvfn.onrender.com';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
+
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
 export const fetchDashboardData = async (location = null) => {
     try {
-        const url = location ? `/api/dashboard?location=${encodeURIComponent(location)}` : '/api/dashboard';
+        const url = location ? apiUrl(`/api/dashboard?location=${encodeURIComponent(location)}`) : apiUrl('/api/dashboard');
         const response = await fetch(url);
         if (!response.ok) {
              throw new Error('Network response was not ok');
@@ -16,9 +21,9 @@ export const fetchDashboardData = async (location = null) => {
 
 export const fetchCurrentWeather = async (city = 'Dhenkanal') => {
     try {
-        const response = await fetch(`/api/weather/current?city=${encodeURIComponent(city)}`);
+        const response = await fetch(apiUrl(`/api/weather/current?city=${encodeURIComponent(city)}`));
         if (!response.ok) {
-             throw new Error('Network response was not ok');
+             throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
         return await response.json();
     } catch (error) {
@@ -51,9 +56,9 @@ export const fetchLiveAnomalyData = async (location, userId = null, userEmail = 
             params.set('user_email', String(userEmail));
         }
 
-        const response = await fetch(`/api/anomaly/live?${params.toString()}`);
+        const response = await fetch(apiUrl(`/api/anomaly/live?${params.toString()}`));
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
         return await response.json();
     } catch (error) {
@@ -64,7 +69,7 @@ export const fetchLiveAnomalyData = async (location, userId = null, userEmail = 
 
 export const fetchAdvisories = async (location) => {
     try {
-        const response = await fetch(`/api/advisory?location=${encodeURIComponent(location)}`);
+        const response = await fetch(apiUrl(`/api/advisory?location=${encodeURIComponent(location)}`));
         if (!response.ok) {
              throw new Error('Network response was not ok');
         }
@@ -77,7 +82,7 @@ export const fetchAdvisories = async (location) => {
 
 export const fetchReports = async (location = null) => {
     try {
-        const url = location ? `/api/reports?location=${encodeURIComponent(location)}` : '/api/reports';
+        const url = location ? apiUrl(`/api/reports?location=${encodeURIComponent(location)}`) : apiUrl('/api/reports');
         const response = await fetch(url);
         if (!response.ok) {
              throw new Error('Network response was not ok');
@@ -90,7 +95,7 @@ export const fetchReports = async (location = null) => {
 };
 
 export const updateUserProfile = async (userId, location) => {
-    const response = await fetch('/api/profile', {
+    const response = await fetch(apiUrl('/api/profile'), {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json'
@@ -107,7 +112,7 @@ export const updateUserProfile = async (userId, location) => {
 };
 
 export const loginUser = async (email, password) => {
-    const response = await fetch('/api/login', {
+    const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -124,7 +129,7 @@ export const loginUser = async (email, password) => {
 };
 
 export const registerUser = async (email, password, location) => {
-    const response = await fetch('/api/register', {
+    const response = await fetch(apiUrl('/api/register'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
