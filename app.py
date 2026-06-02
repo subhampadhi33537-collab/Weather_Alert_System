@@ -10,6 +10,9 @@ from database.queries import check_connections
 
 app = Flask(__name__)
 
+# Compatibility alias for platforms configured with "gunicorn app:wsgi".
+wsgi = app
+
 
 def _origin_rule(value: str):
 	origin = str(value or "").strip()
