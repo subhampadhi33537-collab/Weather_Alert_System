@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://weather-alert-system-1xio.onrender.com/api/$1"
+      "destination": "https://weather-alert-system-gvfn.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
